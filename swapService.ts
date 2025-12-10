@@ -14,7 +14,7 @@ import type {
   TokenSymbol,
   PoolInfo,
   SwapParams
-} from './types';
+} from './types.js';
 
 const CONTRACTS = {
   FACTORY: '0x1F98431c8aD98523631AE4a59f267346ea31F984',

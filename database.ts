@@ -1,5 +1,5 @@
 import { MongoClient, Db, Collection, Document } from 'mongodb';
-import { logger } from './logger';
+import { logger } from './logger.js';
 
 export interface TransactionRecord {
   _id?: string;
