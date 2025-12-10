@@ -1,15 +1,4 @@
 {
-
-  "env": {
-    "RPC_URL": "@rpc_url",
-    "RPC_URL_BACKUP_1": "@rpc_url_backup_1",
-    "RPC_URL_BACKUP_2": "@rpc_url_backup_2",
-    "ALCHEMY_URL": "@alchemy_url",
-    "INFURA_URL": "@infura_url",
-    "PRIVATE_KEY": "@private_key",
-    "MONGODB_URI": "@mongodb_uri",
-    "DB_NAME": "@db_name"
-  },
   "functions": {
     "api/*.ts": {
       "runtime": "@vercel/node@3.0.0",
