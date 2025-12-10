@@ -55,10 +55,10 @@ export class DepositVerifier {
       // Find transfer to backend wallet
       const depositEvent = transferEvents.find(event => 
         event?.name === 'Transfer' && 
-        event.args.to.toLowerCase() === this.backendWallet.toLowerCase()
+        event.args && event.args.to.toLowerCase() === this.backendWallet.toLowerCase()
       );
 
-      if (!depositEvent) {
+      if (!depositEvent || !depositEvent.args) {
         logger.warn('No RLUSD transfer to backend wallet found', { 
           transactionHash,
           backendWallet: this.backendWallet 
