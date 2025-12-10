@@ -110,6 +110,7 @@ export class DepositVerifier {
       const deposits: DepositVerification[] = [];
 
       for (const event of events) {
+        if (!('args' in event)) continue;
         const block = await this.provider.getBlock(event.blockNumber);
         const amount = ethers.formatUnits(event.args.value, 18);
 
