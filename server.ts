@@ -73,6 +73,9 @@ export class BackendSwapHandler {
       if (targetToken && targetToken !== tokenSymbol) {
         logger.info('Auto-converting tokens', { from: tokenSymbol, to: targetToken });
 
+        // Generate tracking ID
+        const trackingId = `track_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
         // Save initial transaction record
         const transactionRecord: Omit<TransactionRecord, '_id'> = {
           transactionHash: '',
@@ -82,13 +85,17 @@ export class BackendSwapHandler {
           toToken: targetToken,
           amountIn: amount.toString(),
           status: 'pending',
-          timestamp: new Date()
+          timestamp: new Date(),
+          metadata: { trackingId }
         };
 
+        // Round amount to avoid floating point precision issues
+        const roundedAmount = parseFloat(amount.toFixed(6));
+        
         const swapResult = await this.swapService.executeSwap(
           tokenSymbol,
           targetToken,
-          amount,
+          roundedAmount,
           0.03
         );
 
@@ -101,6 +108,18 @@ export class BackendSwapHandler {
           
           await database.saveTransaction(transactionRecord);
           
+          // Update user balance ledger (only for USDC)
+          if (targetToken === 'USDC') {
+            await database.updateUserBalance({
+              userAddress,
+              chain: 'Base',
+              token: 'USDC',
+              amount: swapResult.amountOut!,
+              operation: 'swap',
+              transactionHash: swapResult.transactionHash!
+            });
+          }
+          
           logger.info('Swap completed successfully', {
             transactionHash: swapResult.transactionHash,
             amountIn: swapResult.amountIn,
@@ -111,6 +130,7 @@ export class BackendSwapHandler {
           return {
             status: "success",
             operation: "deposit_and_swap",
+            trackingId,
             originalAmount: amount.toString(),
             originalToken: tokenSymbol,
             finalAmount: swapResult.amountOut,

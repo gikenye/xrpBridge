@@ -5,6 +5,10 @@ import quoteHandler from './api/quote';
 import verifyDepositHandler from './api/verify-deposit';
 import trackDepositHandler from './api/track-deposit';
 import recentDepositsHandler from './api/recent-deposits';
+import offrampHandler from './api/offramp';
+import bridgeHandler from './api/bridge';
+import userBalanceHandler from './api/user-balance';
+import userDepositsHandler from './api/user-deposits';
 
 const PORT = process.env.PORT || 3000;
 
@@ -15,7 +19,8 @@ const server = createServer(async (req, res) => {
   const vercelReq = {
     ...req,
     body: await getBody(req),
-    query: parse(req.url || '', true).query
+    query: parse(req.url || '', true).query,
+    headers: req.headers
   } as any;
 
   const vercelRes = {
@@ -40,6 +45,9 @@ const server = createServer(async (req, res) => {
       case '/api/quote':
         await quoteHandler(vercelReq, vercelRes);
         break;
+      case '/api/bridge':
+        await bridgeHandler(vercelReq, vercelRes);
+        break;
       case '/api/verify-deposit':
         await verifyDepositHandler(vercelReq, vercelRes);
         break;
@@ -48,6 +56,15 @@ const server = createServer(async (req, res) => {
         break;
       case '/api/recent-deposits':
         await recentDepositsHandler(vercelReq, vercelRes);
+        break;
+        case '/api/offramp':
+        await offrampHandler(vercelReq, vercelRes);
+        break;
+        case '/api/user-balance':
+        await userBalanceHandler(vercelReq, vercelRes);
+        break;
+        case '/api/user-deposits':
+        await userDepositsHandler(vercelReq, vercelRes);
         break;
       default:
         res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -83,6 +100,7 @@ server.listen(PORT, () => {
   console.log(`📋 Available endpoints:`);
   console.log(`  POST http://localhost:${PORT}/api/swap`);
   console.log(`  POST http://localhost:${PORT}/api/quote`);
+  console.log(`  POST http://localhost:${PORT}/api/bridge`);
   console.log(`  POST http://localhost:${PORT}/api/verify-deposit`);
   console.log(`  POST http://localhost:${PORT}/api/track-deposit`);
   console.log(`  GET  http://localhost:${PORT}/api/recent-deposits`);

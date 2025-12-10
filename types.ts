@@ -44,6 +44,7 @@ export interface WalletSummary {
 export interface DepositResult {
   status: 'success' | 'error';
   operation: 'deposit_only' | 'deposit_and_swap' | 'deposit';
+  trackingId?: string;
   originalAmount?: string;
   originalToken?: string;
   finalAmount?: string;
