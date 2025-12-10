@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
-import FACTORY_ABI from './abis/factory.json' assert { type: 'json' };
-import QUOTER_ABI from './abis/quoter.json' assert { type: 'json' };
-import SWAP_ROUTER_ABI from './abis/swaprouter.json' assert { type: 'json' };
-import POOL_ABI from './abis/pool.json' assert { type: 'json' };
-import TOKEN_IN_ABI from './abis/weth.json' assert { type: 'json' };
+import FACTORY_ABI from './abis/factory.json' with { type: 'json' };
+import QUOTER_ABI from './abis/quoter.json' with { type: 'json' };
+import SWAP_ROUTER_ABI from './abis/swaprouter.json' with { type: 'json' };
+import POOL_ABI from './abis/pool.json' with { type: 'json' };
+import TOKEN_IN_ABI from './abis/weth.json' with { type: 'json' };
 import 'dotenv/config';
 import type {
   Token,
