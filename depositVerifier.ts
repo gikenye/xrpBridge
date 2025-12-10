@@ -37,28 +37,17 @@ export class DepositVerifier {
         return null;
       }
 
-      // Parse transfer events
-      const transferEvents = receipt.logs
-        .filter(log => log.address.toLowerCase() === this.rlusdContract.target.toString().toLowerCase())
-        .map(log => {
-          try {
-            return this.rlusdContract.interface.parseLog({
-              topics: log.topics,
-              data: log.data
-            });
-          } catch {
-            return null;
-          }
-        })
-        .filter(event => event !== null);
+      // Find RLUSD Transfer events to backend wallet
+      const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+      const toAddressTopic = ethers.zeroPadValue(this.backendWallet.toLowerCase(), 32);
 
-      // Find transfer to backend wallet
-      const depositEvent = transferEvents.find(event => 
-        event?.name === 'Transfer' && 
-        event.args && event.args.to.toLowerCase() === this.backendWallet.toLowerCase()
+      const depositLog = receipt.logs.find(log => 
+        log.address.toLowerCase() === this.rlusdContract.target.toString().toLowerCase() &&
+        log.topics[0] === transferTopic &&
+        log.topics[2].toLowerCase() === toAddressTopic.toLowerCase()
       );
 
-      if (!depositEvent || !depositEvent.args) {
+      if (!depositLog) {
         logger.warn('No RLUSD transfer to backend wallet found', { 
           transactionHash,
           backendWallet: this.backendWallet 
@@ -66,12 +55,15 @@ export class DepositVerifier {
         return null;
       }
 
+      // Manually decode Transfer event
+      const fromAddress = ethers.getAddress('0x' + depositLog.topics[1].slice(26));
+      const value = BigInt(depositLog.data);
       const block = await this.provider.getBlock(receipt.blockNumber);
-      const amount = ethers.formatUnits(depositEvent.args.value, 18);
+      const amount = ethers.formatUnits(value, 18);
 
       const verification: DepositVerification = {
         transactionHash,
-        userAddress: depositEvent.args.from,
+        userAddress: fromAddress,
         amount,
         blockNumber: receipt.blockNumber,
         timestamp: new Date(block!.timestamp * 1000),
@@ -98,41 +90,68 @@ export class DepositVerifier {
       const latestBlock = await this.provider.getBlockNumber();
       const startBlock = fromBlock < 0 ? latestBlock + fromBlock : fromBlock;
 
-      logger.info('Scanning for deposits', { 
-        startBlock, 
+      logger.info('Scanning for deposits using eth_getLogs', { 
+        startBlock,
         latestBlock,
+        blockRange: latestBlock - startBlock,
         backendWallet: this.backendWallet 
       });
 
-      const filter = this.rlusdContract.filters.Transfer(null, this.backendWallet);
-      const events = await this.rlusdContract.queryFilter(filter, startBlock, latestBlock);
+      // Transfer event topic: keccak256("Transfer(address,address,uint256)")
+      const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+      const toAddressTopic = ethers.zeroPadValue(this.backendWallet.toLowerCase(), 32);
+
+      const logs = await this.provider.getLogs({
+        address: this.rlusdContract.target.toString(),
+        topics: [transferTopic, null, toAddressTopic],
+        fromBlock: startBlock,
+        toBlock: latestBlock
+      });
+
+      logger.info('Raw logs fetched', { logsCount: logs.length });
 
       const deposits: DepositVerification[] = [];
 
-      for (const event of events) {
-        if (!('args' in event)) continue;
-        const block = await this.provider.getBlock(event.blockNumber);
-        const amount = ethers.formatUnits(event.args.value, 18);
+      for (const log of logs) {
+        try {
+          // Manually decode Transfer event: Transfer(address indexed from, address indexed to, uint256 value)
+          const fromAddress = ethers.getAddress('0x' + log.topics[1].slice(26));
+          const toAddress = ethers.getAddress('0x' + log.topics[2].slice(26));
+          const value = BigInt(log.data);
 
-        deposits.push({
-          transactionHash: event.transactionHash,
-          userAddress: event.args.from,
-          amount,
-          blockNumber: event.blockNumber,
-          timestamp: new Date(block!.timestamp * 1000),
-          verified: true
-        });
+          const block = await this.provider.getBlock(log.blockNumber);
+          const amount = ethers.formatUnits(value, 18);
+
+          deposits.push({
+            transactionHash: log.transactionHash,
+            userAddress: fromAddress,
+            amount,
+            blockNumber: log.blockNumber,
+            timestamp: new Date(block!.timestamp * 1000),
+            verified: true
+          });
+        } catch (parseError) {
+          logger.warn('Failed to parse log', { log, error: parseError });
+        }
       }
 
       logger.info('Deposits scan completed', { 
         depositsFound: deposits.length,
-        blockRange: `${startBlock}-${latestBlock}`
+        blockRange: `${startBlock}-${latestBlock}`,
+        deposits: deposits.map(d => ({
+          tx: d.transactionHash,
+          from: d.userAddress,
+          amount: d.amount,
+          block: d.blockNumber
+        }))
       });
 
       return deposits;
 
     } catch (error) {
-      logger.error('Failed to scan for deposits', error as Error);
+      logger.error('Failed to scan for deposits', error as Error, {
+        errorDetails: error instanceof Error ? error.message : 'Unknown'
+      });
       return [];
     }
   }
