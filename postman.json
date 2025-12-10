@@ -1,0 +1,168 @@
+{
+  "info": {
+    "name": "Uniswap V3 Swap Service",
+    "description": "API collection for USDC ↔ RLUSD swap service with deposit verification",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Get Swap Quote",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fromToken\": \"USDC\",\n  \"toToken\": \"RLUSD\",\n  \"amount\": 0.001\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/quote",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "quote"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Execute Swap",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userAddress\": \"0x742d35Cc6634C0532925a3b8D400e5e5c8c8b8b8\",\n  \"fromToken\": \"USDC\",\n  \"toToken\": \"RLUSD\",\n  \"amount\": 0.001,\n  \"targetToken\": \"RLUSD\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/swap",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "swap"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Track Deposit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userAddress\": \"0x742d35Cc6634C0532925a3b8D400e5e5c8c8b8b8\",\n  \"expectedAmount\": \"0.001\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/track-deposit",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "track-deposit"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Verify Deposit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transactionHash\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/verify-deposit",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "verify-deposit"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Recent Deposits",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/recent-deposits?fromBlock=-1000",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "recent-deposits"],
+          "query": [
+            {
+              "key": "fromBlock",
+              "value": "-1000",
+              "description": "Number of blocks to look back (negative) or specific block number"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "RLUSD to USDC Quote",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fromToken\": \"RLUSD\",\n  \"toToken\": \"USDC\",\n  \"amount\": 0.001\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/quote",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "quote"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "RLUSD to USDC Swap",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userAddress\": \"0x742d35Cc6634C0532925a3b8D400e5e5c8c8b8b8\",\n  \"fromToken\": \"RLUSD\",\n  \"toToken\": \"USDC\",\n  \"amount\": 0.001\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/swap",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "swap"]
+        }
+      },
+      "response": []
+    }
+  ]
+}

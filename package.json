@@ -1,0 +1,30 @@
+{
+  "name": "uniswap-v3-swap-service",
+  "version": "1.0.0",
+  "description": "Production-ready Uniswap V3 swap service for backend servers",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx dev-server.ts",
+    "dev:serverless": "tsx server.ts",
+    "test": "tsx test.ts"
+  },
+  "dependencies": {
+    "@circle-fin/adapter-ethers-v6": "^1.1.1",
+    "@circle-fin/bridge-kit": "^1.1.2",
+    "@vercel/node": "^3.2.29",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.16.0",
+    "mongodb": "^6.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
