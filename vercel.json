@@ -1,5 +1,6 @@
 {
-  "outputDirectory": "dist",
+  "buildCommand": "tsc && cp -r dist public/ && cp public/index.html public/index.html",
+  "outputDirectory": "public",
   "functions": {
     "api/*.ts": {
       "maxDuration": 30
