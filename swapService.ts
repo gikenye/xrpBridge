@@ -45,11 +45,28 @@ export class SwapService {
   private signer: ethers.Wallet;
   private factoryContract: ethers.Contract;
   private quoterContract: ethers.Contract;
+  private rpcUrls: string[];
+  private currentRpcIndex: number = 0;
 
   constructor(rpcUrl: string, privateKey: string) {
-    this.provider = new ethers.JsonRpcProvider(rpcUrl);
+    this.rpcUrls = [
+      rpcUrl,
+      process.env.RPC_URL2 || '',
+      process.env.RPC_URL_BACKUP_1 || '',
+      process.env.RPC_URL_BACKUP_2 || ''
+    ].filter(url => url);
+    
+    this.provider = new ethers.JsonRpcProvider(this.rpcUrls[0], undefined, { staticNetwork: true });
     this.signer = new ethers.Wallet(privateKey, this.provider);
     
+    this.factoryContract = new ethers.Contract(CONTRACTS.FACTORY, FACTORY_ABI, this.provider);
+    this.quoterContract = new ethers.Contract(CONTRACTS.QUOTER, QUOTER_ABI, this.provider);
+  }
+
+  private async switchRpcProvider(): Promise<void> {
+    this.currentRpcIndex = (this.currentRpcIndex + 1) % this.rpcUrls.length;
+    this.provider = new ethers.JsonRpcProvider(this.rpcUrls[this.currentRpcIndex], undefined, { staticNetwork: true });
+    this.signer = new ethers.Wallet(this.signer.privateKey, this.provider);
     this.factoryContract = new ethers.Contract(CONTRACTS.FACTORY, FACTORY_ABI, this.provider);
     this.quoterContract = new ethers.Contract(CONTRACTS.QUOTER, QUOTER_ABI, this.provider);
   }
@@ -64,25 +81,48 @@ export class SwapService {
     
     if (!token) throw new Error(`Unsupported token: ${tokenSymbol}`);
     
-    const contract = new ethers.Contract(token.address, TOKEN_IN_ABI, this.provider);
-    const balance = await contract.balanceOf(address);
-    
-    return {
-      raw: balance,
-      formatted: ethers.formatUnits(balance, token.decimals),
-      symbol: token.symbol
-    };
+    for (let attempt = 0; attempt < this.rpcUrls.length; attempt++) {
+      try {
+        const contract = new ethers.Contract(token.address, TOKEN_IN_ABI, this.provider);
+        const balance = await contract.balanceOf(address);
+        
+        return {
+          raw: balance,
+          formatted: ethers.formatUnits(balance, token.decimals),
+          symbol: token.symbol
+        };
+      } catch (error) {
+        if (attempt < this.rpcUrls.length - 1) {
+          await this.switchRpcProvider();
+        } else {
+          throw error;
+        }
+      }
+    }
+    throw new Error('Failed to get token balance from all RPC providers');
   }
 
   async getEthBalance(walletAddress?: string): Promise<TokenBalance> {
     const address = walletAddress || this.signer.address;
-    const balance = await this.provider.getBalance(address);
     
-    return {
-      raw: balance,
-      formatted: ethers.formatEther(balance),
-      symbol: 'ETH'
-    };
+    for (let attempt = 0; attempt < this.rpcUrls.length; attempt++) {
+      try {
+        const balance = await this.provider.getBalance(address);
+        
+        return {
+          raw: balance,
+          formatted: ethers.formatEther(balance),
+          symbol: 'ETH'
+        };
+      } catch (error) {
+        if (attempt < this.rpcUrls.length - 1) {
+          await this.switchRpcProvider();
+        } else {
+          throw error;
+        }
+      }
+    }
+    throw new Error('Failed to get ETH balance from all RPC providers');
   }
 
   async getQuote(fromToken: TokenSymbol, toToken: TokenSymbol, amount: number): Promise<SwapQuote> {
@@ -93,8 +133,14 @@ export class SwapService {
       throw new Error(`Unsupported token pair: ${fromToken}/${toToken}`);
     }
 
-    const amountIn = ethers.parseUnits(amount.toString(), tokenIn.decimals);
     const { fee } = await this._findPool(tokenIn, tokenOut);
+    return this._getQuoteWithFee(fromToken, toToken, amount, fee);
+  }
+
+  private async _getQuoteWithFee(fromToken: TokenSymbol, toToken: TokenSymbol, amount: number, fee: number): Promise<SwapQuote> {
+    const tokenIn = TOKENS[fromToken];
+    const tokenOut = TOKENS[toToken];
+    const amountIn = ethers.parseUnits(amount.toString(), tokenIn.decimals);
 
     const quotedAmountOut = await this.quoterContract.quoteExactInputSingle.staticCall({
       tokenIn: tokenIn.address,
@@ -140,16 +186,19 @@ export class SwapService {
         throw new Error(`Insufficient ETH for gas fees`);
       }
 
-      // Approve token if needed
-      const approvalTx = await this._ensureApproval(tokenIn, amountIn);
+      // Get pool fee first
+      const { fee } = await this._findPool(tokenIn, tokenOut);
       
-      // Get pool and quote
-      const { poolContract, fee } = await this._findPool(tokenIn, tokenOut);
-      const quote = await this.getQuote(fromToken, toToken, amount);
+      // Approve token if needed (parallel with quote)
+      const [approvalTx, quote] = await Promise.all([
+        this._ensureApproval(tokenIn, amountIn),
+        this._getQuoteWithFee(fromToken, toToken, amount, fee)
+      ]);
       
-      // Prepare swap parameters
+      // Prepare swap parameters with proper decimal handling
+      const minAmountOut = parseFloat(quote.amountOut) * (1 - slippageTolerance);
       const amountOutMinimum = ethers.parseUnits(
-        (parseFloat(quote.amountOut) * (1 - slippageTolerance)).toString(),
+        minAmountOut.toFixed(tokenOut.decimals),
         tokenOut.decimals
       );
 
@@ -191,37 +240,47 @@ export class SwapService {
   }
 
   private async _findPool(tokenIn: Token, tokenOut: Token): Promise<PoolInfo> {
-    // RLUSD/USDC pool uses 0.01% fee (100), check it first
-    const feeTiers = [100, 500, 3000, 10000];
+    // For RLUSD/USDC, only check 0.01% fee (100 basis points)
+    const isRlusdUsdcPair = (tokenIn.symbol === 'RLUSD' && tokenOut.symbol === 'USDC') || 
+                           (tokenIn.symbol === 'USDC' && tokenOut.symbol === 'RLUSD');
+    
+    const feeTiers = isRlusdUsdcPair ? [100] : [100, 500, 3000, 10000];
     
     for (const fee of feeTiers) {
-      try {
-        const poolAddress = await this.factoryContract.getPool(tokenIn.address, tokenOut.address, fee);
-        if (poolAddress && poolAddress !== ethers.ZeroAddress) {
-          const poolContract = new ethers.Contract(poolAddress, POOL_ABI, this.provider);
-          // Verify pool is active by checking token0
-          await poolContract.token0();
-          return { poolContract, fee, poolAddress };
-        }
-      } catch (e) {
-        // Continue to next fee tier
-        continue;
+      const poolAddress = await this.factoryContract.getPool(tokenIn.address, tokenOut.address, fee);
+      if (poolAddress && poolAddress !== ethers.ZeroAddress) {
+        const poolContract = new ethers.Contract(poolAddress, POOL_ABI, this.provider);
+        return { poolContract, fee, poolAddress };
       }
     }
     throw new Error(`No pool found for ${tokenIn.symbol}/${tokenOut.symbol}`);
   }
 
   private async _ensureApproval(token: Token, amount: bigint): Promise<{ hash: string; gasUsed: string } | null> {
-    const tokenContract = new ethers.Contract(token.address, TOKEN_IN_ABI, this.signer);
-    const currentAllowance = await tokenContract.allowance(this.signer.address, CONTRACTS.SWAP_ROUTER);
+    let currentAllowance: bigint = 0n;
+    
+    for (let attempt = 0; attempt < this.rpcUrls.length; attempt++) {
+      try {
+        const tokenContract = new ethers.Contract(token.address, TOKEN_IN_ABI, this.provider);
+        currentAllowance = await tokenContract.allowance(this.signer.address, CONTRACTS.SWAP_ROUTER);
+        break;
+      } catch (error) {
+        if (attempt < this.rpcUrls.length - 1) {
+          await this.switchRpcProvider();
+        } else {
+          throw error;
+        }
+      }
+    }
     
     if (currentAllowance >= amount) {
       return null;
     }
 
+    const tokenContract = new ethers.Contract(token.address, TOKEN_IN_ABI, this.signer);
+
     const feeData = await this.provider.getFeeData();
     const nonce = await this.signer.getNonce();
-
     const approvalTx = await tokenContract.approve.populateTransaction(CONTRACTS.SWAP_ROUTER, amount);
     
     const legacyTx = {
@@ -234,11 +293,11 @@ export class SwapService {
     };
 
     const txResponse = await this.signer.sendTransaction(legacyTx);
-    const receipt = await txResponse.wait();
+    const receipt = await this._waitForTransaction(txResponse.hash);
     
     return {
-      hash: receipt!.hash,
-      gasUsed: receipt!.gasUsed.toString()
+      hash: receipt.hash,
+      gasUsed: receipt.gasUsed.toString()
     };
   }
 
@@ -259,16 +318,32 @@ export class SwapService {
     };
     
     const txResponse = await this.signer.sendTransaction(legacyTx);
-    const receipt = await txResponse.wait();
+    const receipt = await this._waitForTransaction(txResponse.hash);
     
-    const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
+    const gasUsed = receipt.gasUsed * receipt.gasPrice;
     const gasCostEth = ethers.formatEther(gasUsed);
     
     return {
-      hash: receipt!.hash,
-      gasUsed: receipt!.gasUsed,
+      hash: receipt.hash,
+      gasUsed: receipt.gasUsed,
       gasCost: gasCostEth
     };
+  }
+
+  private async _waitForTransaction(txHash: string): Promise<ethers.TransactionReceipt> {
+    for (let attempt = 0; attempt < this.rpcUrls.length; attempt++) {
+      try {
+        const receipt = await this.provider.waitForTransaction(txHash, 1, 60000);
+        if (receipt) return receipt;
+      } catch (error) {
+        if (attempt < this.rpcUrls.length - 1) {
+          await this.switchRpcProvider();
+        } else {
+          throw error;
+        }
+      }
+    }
+    throw new Error('Failed to get transaction receipt from all RPC providers');
   }
 
   private async _estimateGasCost(): Promise<bigint> {

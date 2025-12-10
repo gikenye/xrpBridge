@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "dev": "tsx dev-server.ts",
     "dev:serverless": "tsx server.ts",
-    "test": "tsx test.ts"
+    "test": "tsx test.ts",
+    "listener": "tsx depositListener.ts",
+    "listener:prod": "node dist/depositListener.js"
   },
   "dependencies": {
     "@circle-fin/adapter-ethers-v6": "^1.1.1",

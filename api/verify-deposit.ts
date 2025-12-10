@@ -4,6 +4,7 @@ import SwapService from '../swapService.js';
 import { logger } from '../logger.js';
 import { cache } from '../cache.js';
 import { rateLimiter } from '../rateLimiter.js';
+import { database } from '../database.js';
 
 // Initialize services directly like other endpoints
 const swapService = new SwapService(
@@ -30,8 +31,8 @@ export default async function verifyDepositHandler(req: VercelRequest, res: Verc
   }
 
   // Rate limiting
-  const clientIP = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
-  if (!rateLimiter.isAllowed(clientIP as string)) {
+  const clientIP = (req.headers?.['x-forwarded-for'] as string) || 'dev';
+  if (!rateLimiter.isAllowed(clientIP)) {
     return res.status(429).json({ 
       error: 'Rate limit exceeded',
       retryAfter: 60 
@@ -44,7 +45,7 @@ export default async function verifyDepositHandler(req: VercelRequest, res: Verc
   logger.setContext({ requestId, endpoint: '/api/verify-deposit' });
 
   try {
-    const { transactionHash } = req.body;
+    const { transactionHash, trackingId } = req.body;
 
     if (!transactionHash) {
       return res.status(400).json({ 
@@ -52,16 +53,16 @@ export default async function verifyDepositHandler(req: VercelRequest, res: Verc
       });
     }
 
-    logger.info('Verifying deposit transaction', { transactionHash });
+    logger.info('Verifying deposit transaction', { transactionHash, trackingId });
 
     // Check cache first
     const cacheKey = `deposit_${transactionHash}`;
-    let verification = cache.get(cacheKey);
+    let verification = cache.get(cacheKey) as any;
     
     if (!verification) {
       verification = await verifier.verifyDeposit(transactionHash);
       if (verification) {
-        cache.set(cacheKey, verification, 300); // Cache for 5 minutes
+        cache.set(cacheKey, verification, 300);
       }
     }
 
@@ -72,9 +73,28 @@ export default async function verifyDepositHandler(req: VercelRequest, res: Verc
       });
     }
 
+    // Update tracking record if trackingId provided
+    if (trackingId) {
+      await database.connect();
+      await database.updateTransaction(transactionHash, {
+        transactionHash,
+        status: 'success',
+        amountOut: verification.amount,
+        metadata: {
+          verified: true,
+          blockNumber: verification.blockNumber,
+          verificationTimestamp: new Date(),
+          trackingId
+        }
+      });
+      await database.disconnect();
+      logger.info('Updated tracking record', { trackingId, transactionHash });
+    }
+
     return res.status(200).json({
       verified: true,
-      deposit: verification
+      deposit: verification,
+      trackingUpdated: !!trackingId
     });
 
   } catch (error) {
