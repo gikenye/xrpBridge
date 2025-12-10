@@ -1,10 +1,10 @@
-import SwapService from "./swapService";
+import SwapService from "./swapService.js";
 import { BridgeKit } from "@circle-fin/bridge-kit";
 import { createAdapterFromPrivateKey } from "@circle-fin/adapter-ethers-v6";
 import { ethers } from "ethers";
 import "dotenv/config";
-import { logger } from "./logger";
-import { database, TransactionRecord } from "./database";
+import { logger } from "./logger.js";
+import { database, TransactionRecord } from "./database.js";
 import type {
   DepositResult,
   QuoteResponse,
@@ -12,7 +12,7 @@ import type {
   WalletHealth,
   HealthAlert,
   TokenSymbol,
-} from "./types";
+} from "./types.js";
 
 const swapService = new SwapService(
   process.env.RPC_URL!,

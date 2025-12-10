@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
-import { logger } from './logger';
-import { database, TransactionRecord } from './database';
+import { logger } from './logger.js';
+import { database, TransactionRecord } from './database.js';
 import TOKEN_ABI from './abis/weth.json';
 
 export interface DepositVerification {
