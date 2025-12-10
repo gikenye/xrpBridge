@@ -1,5 +1,5 @@
 {
-  "buildCommand": "tsc && cp -r dist/* public/",
+  "buildCommand": "mkdir -p public",
   "outputDirectory": "public",
   "functions": {
     "api/*.ts": {

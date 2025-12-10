@@ -1,7 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { BackendSwapHandler } from '../server';
-import SwapService from '../swapService';
-import { logger } from '../logger';
+import { BackendSwapHandler } from '../server.js';
+import SwapService from '../swapService.js';
+import { logger } from '../logger.js';
 
 const swapService = new SwapService(
   process.env.RPC_URL!,

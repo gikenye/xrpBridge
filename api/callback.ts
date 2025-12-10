@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { logger } from '../logger';
+import { logger } from '../logger.js';
 
 export default async function callbackHandler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

@@ -1,9 +1,9 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { DepositVerifier } from '../depositVerifier';
-import SwapService from '../swapService';
-import { logger } from '../logger';
-import { cache } from '../cache';
-import { rateLimiter } from '../rateLimiter';
+import { DepositVerifier } from '../depositVerifier.js';
+import SwapService from '../swapService.js';
+import { logger } from '../logger.js';
+import { cache } from '../cache.js';
+import { rateLimiter } from '../rateLimiter.js';
 
 // Initialize services directly like other endpoints
 const swapService = new SwapService(
