@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { logger } from './logger.js';
 import { database, TransactionRecord } from './database.js';
-import TOKEN_ABI from './abis/weth.json';
+import TOKEN_ABI from './abis/weth.json' assert { type: 'json' };
 
 export interface DepositVerification {
   transactionHash: string;
